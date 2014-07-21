@@ -43,6 +43,7 @@ func init() {
 	ip = addrs[0]
 }
 
+// StatusUpdate is a wrapper around a Mesos Task Status Update.
 type StatusUpdate struct {
 	TaskId	string
 	SlaveId	string
@@ -50,6 +51,7 @@ type StatusUpdate struct {
 	uuid	[]byte
 }
 
+// EventChannels are the channels on which events are communicated to a framework.
 type EventChannels struct {
 	Offers chan mesos.Offer
 	Updates chan StatusUpdate
@@ -63,7 +65,7 @@ func NewEventChannels() *EventChannels {
 	return m
 }
 
-// Register with a running master.
+// Register with a running master as the given user and framework name.
 func Register(user, name string) error {
 	frameworkName = name
 	registeredUser = user
@@ -88,7 +90,7 @@ func Register(user, name string) error {
 	return nil
 }
 
-// Event loop
+// Run starts listening for events from the Mesos master.
 func (eventChannels *EventChannels) Run() error {
 	for {
 		log.Printf("waiting for mesos event...")
@@ -127,7 +129,7 @@ func (eventChannels *EventChannels) Run() error {
 	}
 }
 
-// Send an acknowledgement of the status update for the given task id.
+// SendAck send an acknowledgement of the given task status update.
 func SendAck(update StatusUpdate) error {
 	acknowledgeType := mesos_scheduler.Call_ACKNOWLEDGE
 	acknowledgeCall := &mesos_scheduler.Call{
@@ -156,7 +158,7 @@ func SendAck(update StatusUpdate) error {
 	return nil
 }
 
-// Launch the given command as a task and consume the offer.
+// LaunchTask launches the given command as a task and consumes the offer.
 func LaunchTask(offer mesos.Offer, id, command string) error {
 	log.Printf("launching %s: %q", id, command)
 
