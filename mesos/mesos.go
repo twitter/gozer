@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	master     = flag.String("master", "localhost", "Hostname of the master")
-	masterPort = flag.Int("masterPort", 5050, "Port of the master")
+	master     = flag.String("master", "localhost", "Hostname of the Mesos master")
+	masterPort = flag.Int("master_port", 5050, "Port of the Mesos master")
 
 	ip string
 
@@ -43,6 +43,26 @@ func init() {
 	ip = addrs[0]
 }
 
+type StatusUpdate struct {
+	TaskId	string
+	SlaveId	string
+	State	mesos.TaskState
+	uuid	[]byte
+}
+
+type EventChannels struct {
+	Offers chan mesos.Offer
+	Updates chan StatusUpdate
+}
+
+func NewEventChannels() *EventChannels {
+	m := new(EventChannels)
+	m.Offers = make(chan mesos.Offer)
+	m.Updates = make(chan StatusUpdate)
+
+	return m
+}
+
 // Register with a running master.
 func Register(user, name string) error {
 	frameworkName = name
@@ -58,7 +78,6 @@ func Register(user, name string) error {
 		},
 	}
 
-	// Ensure we are listening before trying to send.
 	httpWaitGroup.Wait()
 
 	err := send(registerCall)
@@ -66,78 +85,75 @@ func Register(user, name string) error {
 		return err
 	}
 
-	// Wait for HTTP endpoint to receive registration message.
-	event := <-events
-
-	if *event.Type != mesos_scheduler.Event_REGISTERED {
-		return fmt.Errorf("Unexpected event type: want %q, got %+v", mesos_scheduler.Event_REGISTERED, *event.Type)
-	}
-
-	frameworkId = *event.Registered.FrameworkId
-	log.Printf("Registered %s:%s with id %q", registeredUser, frameworkName, *frameworkId.Value)
-
 	return nil
 }
 
-// TODO(dhamon): Refactor below into an event loop that tracks task updates and offers.
-// Wait for offers.
-func WaitForOffers() ([]mesos.Offer, error) {
-	event := <-events
+// Event loop
+func (eventChannels *EventChannels) Run() error {
+	for {
+		log.Printf("waiting for mesos event...")
+		event := <-events
+		log.Printf("... got event type %+v", *event.Type)
 
-	if *event.Type != mesos_scheduler.Event_OFFERS {
-		return nil, fmt.Errorf("Unexpected event type: want %q, got %+v", mesos_scheduler.Event_OFFERS, *event.Type)
-	}
+		switch (*event.Type) {
+		case mesos_scheduler.Event_REGISTERED:
+			frameworkId = *event.Registered.FrameworkId
+			log.Printf("registered %s:%s with id %q", registeredUser, frameworkName, *frameworkId.Value)
+			//RegisteredHandler()
+			break
 
-	var offers []mesos.Offer
-	for _, offer := range event.Offers.Offers {
-		if *offer.FrameworkId.Value != *frameworkId.Value {
-			return nil, fmt.Errorf("Unexpected framework in offer: want %q, got %q", *frameworkId.Value, *offer.FrameworkId.Value)
+		case mesos_scheduler.Event_OFFERS:
+			for _, offer := range event.Offers.Offers {
+				if *offer.FrameworkId.Value != *frameworkId.Value {
+					log.Printf("Unexpected framework in offer: want %q, got %q", *frameworkId.Value, *offer.FrameworkId.Value)
+				}
+				eventChannels.Offers <- *offer
+			}
+			break
+
+		case mesos_scheduler.Event_UPDATE:
+			// TODO(dhamon): Pass through event.Update.Status.GetMessage()?
+			eventChannels.Updates <- StatusUpdate{
+				TaskId: *event.Update.Status.TaskId.Value,
+				SlaveId: *event.Update.Status.SlaveId.Value,
+				State: *event.Update.Status.State,
+				uuid: event.Update.Uuid,
+			}
+			break
+
+		default:
+			return fmt.Errorf("Unexpected event %+v", *event)
 		}
-		offers = append(offers, *offer)
 	}
-
-	return offers, nil
 }
 
-// TODO(dhamon): pass in request types.
-func RequestOffers() ([]mesos.Offer, error) {
-	// Create the request message and send it.
-	callType := mesos_scheduler.Call_REQUEST
-	cpus := "cpus"
-	memory := "memory"
-	scalar := mesos.Value_SCALAR
-
-	requestCall := &mesos_scheduler.Call{
+// Send an acknowledgement of the status update for the given task id.
+func SendAck(update StatusUpdate) error {
+	acknowledgeType := mesos_scheduler.Call_ACKNOWLEDGE
+	acknowledgeCall := &mesos_scheduler.Call{
 		FrameworkInfo: &mesos.FrameworkInfo{
 			User: &registeredUser,
 			Name: &frameworkName,
 			Id:   &frameworkId,
 		},
-		Type: &callType,
-		Request: &mesos_scheduler.Call_Request{
-			Requests: []*mesos.Request{
-				&mesos.Request{
-					Resources: []*mesos.Resource{
-						&mesos.Resource{
-							Name: &cpus,
-							Type: &scalar,
-						},
-						&mesos.Resource{
-							Name: &memory,
-							Type: &scalar,
-						},
-					},
-				},
+		Type: &acknowledgeType,
+		Acknowledge: &mesos_scheduler.Call_Acknowledge{
+			SlaveId: &mesos.SlaveID{
+				Value: &update.SlaveId,
 			},
+			TaskId:  &mesos.TaskID{
+				Value: &update.TaskId,
+			},
+			Uuid:    update.uuid,
 		},
 	}
 
-	err := send(requestCall)
+	err := send(acknowledgeCall)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to send acknowledgement: %+v", err)
 	}
 
-	return WaitForOffers()
+	return nil
 }
 
 // Launch the given command as a task and consume the offer.
@@ -177,49 +193,5 @@ func LaunchTask(offer mesos.Offer, id, command string) error {
 		return err
 	}
 
-	// TODO(dhamon): Don't wait for the task to finish.
-	for {
-		event := <-events
-
-		if *event.Type != mesos_scheduler.Event_UPDATE {
-			return fmt.Errorf("unexpected event type: want %q, got %+v", mesos_scheduler.Event_UPDATE, *event.Type)
-		}
-
-		acknowledgeType := mesos_scheduler.Call_ACKNOWLEDGE
-		acknowledgeCall := &mesos_scheduler.Call{
-			FrameworkInfo: &mesos.FrameworkInfo{
-				User: &registeredUser,
-				Name: &frameworkName,
-				Id:   &frameworkId,
-			},
-			Type: &acknowledgeType,
-			Acknowledge: &mesos_scheduler.Call_Acknowledge{
-				SlaveId: event.Update.Status.SlaveId,
-				TaskId:  event.Update.Status.TaskId,
-				Uuid:    event.Update.Uuid,
-			},
-		}
-
-		err := send(acknowledgeCall)
-		if err != nil {
-			return fmt.Errorf("failed to send acknowledgement: %+v", err)
-		}
-
-		switch *event.Update.Status.State {
-		case mesos.TaskState_TASK_STAGING:
-		case mesos.TaskState_TASK_STARTING:
-			return nil
-		case mesos.TaskState_TASK_RUNNING:
-			log.Printf("task %s is running: %s", id, event.Update.Status.GetMessage())
-			break
-		case mesos.TaskState_TASK_FINISHED:
-			log.Printf("task %s is complete: %s", id, event.Update.Status.GetMessage())
-			return nil
-		case mesos.TaskState_TASK_FAILED:
-		case mesos.TaskState_TASK_KILLED:
-		case mesos.TaskState_TASK_LOST:
-			return fmt.Errorf("task %s failed to complete: %s", id, event.Update.Status.GetMessage())
-		}
-	}
 	return nil
 }

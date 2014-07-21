@@ -119,7 +119,9 @@ func send(m *mesos_scheduler.Call) error {
 	req, err := http.NewRequest("POST", registerUrl, bytes.NewReader(buffer))
 	req.Header.Add("Connection", "keep-alive")
 	req.Header.Add("Content-type", "application/octet-stream")
-	req.Header.Add("Libprocess-From", fmt.Sprintf("gozer@%s:%d", ip, port))
+	req.Header.Add("Libprocess-From", fmt.Sprintf("%s@%s:%d", frameworkName, ip, *mesosPort))
+
+	log.Printf("sending request: %+v", req)
 
 	resp, err := client.Do(req)
 	if err != nil {
