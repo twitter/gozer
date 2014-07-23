@@ -29,7 +29,7 @@ var (
 
 	taskStates = make(map[string]mesos_pb.TaskState)
 
-	eventChannels = mesos.NewEventChannels()
+	driver = mesos.NewDriver()
 )
 
 type Task struct {
@@ -38,7 +38,7 @@ type Task struct {
 }
 
 func listen() {
-	mesos.Listen()
+	driver.Listen()
 
 	// TODO(dhamon): root handler to show status of tasks.
 	http.HandleFunc("/add", addTask)
@@ -85,9 +85,10 @@ func addTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// TODO(dhamon): Multiselect for status updates/offers
 func handleStatusUpdates() {
 	for {
-		update := <-eventChannels.Updates
+		update := <-driver.Updates
 
 		if _, ok := taskStates[update.TaskId]; ok {
 			taskStates[update.TaskId] = update.State
@@ -104,7 +105,7 @@ func handleStatusUpdates() {
 			case mesos_pb.TaskState_TASK_LOST:
 				log.Printf("task %s failed to complete", update.TaskId)
 			}
-			err := mesos.SendAck(update)
+			err := driver.SendAck(update)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -116,7 +117,7 @@ func handleStatusUpdates() {
 
 func handleOffers() {
 	for {
-		offer := <-eventChannels.Offers
+		offer := <-driver.Offers
 
 		log.Printf("received offer %+v", offer)
 		log.Printf("waiting for tasks...")
@@ -124,7 +125,7 @@ func handleOffers() {
 
 		// TODO(dhamon): Decline offers if resources don't match.
 		taskId := fmt.Sprintf("gozer-task-%d", taskIndex)
-		err := mesos.LaunchTask(offer, taskId, task.Command)
+		err := driver.LaunchTask(offer, taskId, task.Command)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -149,13 +150,13 @@ func main() {
 	go handleOffers()
 
 	log.Printf("registering...")
-	err := mesos.Register(*user, frameworkName)
+	err := driver.Register(*user, frameworkName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Start event loop.
-	err = eventChannels.Run()
+	err = driver.Run()
 	if err != nil {
 		log.Fatal(err)
 	}

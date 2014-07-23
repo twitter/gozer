@@ -94,7 +94,7 @@ func callToMessage(m *mesos_scheduler.Call) (proto.Message, error) {
 	return nil, fmt.Errorf("unimplemented call type %q", *m.Type)
 }
 
-func send(m *mesos_scheduler.Call) error {
+func (d Driver) send(m *mesos_scheduler.Call) error {
 	// TODO(dhamon): Remove this call when mesos listens for Call directly.
 	msg, err := callToMessage(m)
 	if err != nil {
@@ -118,7 +118,7 @@ func send(m *mesos_scheduler.Call) error {
 	req, err := http.NewRequest("POST", registerUrl, bytes.NewReader(buffer))
 	req.Header.Add("Connection", "keep-alive")
 	req.Header.Add("Content-type", "application/octet-stream")
-	req.Header.Add("Libprocess-From", fmt.Sprintf("%s@%s:%d", frameworkName, ip, *mesosPort))
+	req.Header.Add("Libprocess-From", fmt.Sprintf("%s@%s:%d", d.frameworkName, ip, *mesosPort))
 
 	log.Printf("sending request: %+v", req)
 

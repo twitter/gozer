@@ -18,10 +18,6 @@ var (
 
 	ip string
 
-	frameworkName  string
-	registeredUser string
-	frameworkId    mesos.FrameworkID
-
 	httpWaitGroup sync.WaitGroup
 
 	events = make(chan *mesos_scheduler.Event)
@@ -45,20 +41,23 @@ func init() {
 
 // StatusUpdate is a wrapper around a Mesos Task Status Update.
 type StatusUpdate struct {
-	TaskId	string
-	SlaveId	string
-	State	mesos.TaskState
-	uuid	[]byte
+	TaskId  string
+	SlaveId string
+	State   mesos.TaskState
+	uuid    []byte
 }
 
 // EventChannels are the channels on which events are communicated to a framework.
-type EventChannels struct {
-	Offers chan mesos.Offer
-	Updates chan StatusUpdate
+type Driver struct {
+	Offers        chan mesos.Offer
+	Updates       chan StatusUpdate
+	frameworkName string
+	user          string
+	frameworkId   mesos.FrameworkID
 }
 
-func NewEventChannels() *EventChannels {
-	m := new(EventChannels)
+func NewDriver() *Driver {
+	m := new(Driver)
 	m.Offers = make(chan mesos.Offer)
 	m.Updates = make(chan StatusUpdate)
 
@@ -66,23 +65,23 @@ func NewEventChannels() *EventChannels {
 }
 
 // Register with a running master as the given user and framework name.
-func Register(user, name string) error {
-	frameworkName = name
-	registeredUser = user
+func (d *Driver) Register(user, name string) error {
+	d.frameworkName = name
+	d.user = user
 
 	// Create the register message and send it.
 	callType := mesos_scheduler.Call_REGISTER
 	registerCall := &mesos_scheduler.Call{
 		Type: &callType,
 		FrameworkInfo: &mesos.FrameworkInfo{
-			User: &user,
-			Name: &frameworkName,
+			User: &d.user,
+			Name: &d.frameworkName,
 		},
 	}
 
 	httpWaitGroup.Wait()
 
-	err := send(registerCall)
+	err := d.send(registerCall)
 	if err != nil {
 		return err
 	}
@@ -91,35 +90,35 @@ func Register(user, name string) error {
 }
 
 // Run starts listening for events from the Mesos master.
-func (eventChannels *EventChannels) Run() error {
+func (d *Driver) Run() error {
 	for {
 		log.Printf("waiting for mesos event...")
 		event := <-events
 		log.Printf("... got event type %+v", *event.Type)
 
-		switch (*event.Type) {
+		switch *event.Type {
 		case mesos_scheduler.Event_REGISTERED:
-			frameworkId = *event.Registered.FrameworkId
-			log.Printf("registered %s:%s with id %q", registeredUser, frameworkName, *frameworkId.Value)
+			d.frameworkId = *event.Registered.FrameworkId
+			log.Printf("registered %s:%s with id %q", d.user, d.frameworkName, *d.frameworkId.Value)
 			//RegisteredHandler()
 			break
 
 		case mesos_scheduler.Event_OFFERS:
 			for _, offer := range event.Offers.Offers {
-				if *offer.FrameworkId.Value != *frameworkId.Value {
-					log.Printf("Unexpected framework in offer: want %q, got %q", *frameworkId.Value, *offer.FrameworkId.Value)
+				if *offer.FrameworkId.Value != *d.frameworkId.Value {
+					log.Printf("Unexpected framework in offer: want %q, got %q", *d.frameworkId.Value, *offer.FrameworkId.Value)
 				}
-				eventChannels.Offers <- *offer
+				d.Offers <- *offer
 			}
 			break
 
 		case mesos_scheduler.Event_UPDATE:
 			// TODO(dhamon): Pass through event.Update.Status.GetMessage()?
-			eventChannels.Updates <- StatusUpdate{
-				TaskId: *event.Update.Status.TaskId.Value,
+			d.Updates <- StatusUpdate{
+				TaskId:  *event.Update.Status.TaskId.Value,
 				SlaveId: *event.Update.Status.SlaveId.Value,
-				State: *event.Update.Status.State,
-				uuid: event.Update.Uuid,
+				State:   *event.Update.Status.State,
+				uuid:    event.Update.Uuid,
 			}
 			break
 
@@ -130,27 +129,27 @@ func (eventChannels *EventChannels) Run() error {
 }
 
 // SendAck send an acknowledgement of the given task status update.
-func SendAck(update StatusUpdate) error {
+func (d Driver) SendAck(update StatusUpdate) error {
 	acknowledgeType := mesos_scheduler.Call_ACKNOWLEDGE
 	acknowledgeCall := &mesos_scheduler.Call{
 		FrameworkInfo: &mesos.FrameworkInfo{
-			User: &registeredUser,
-			Name: &frameworkName,
-			Id:   &frameworkId,
+			User: &d.user,
+			Name: &d.frameworkName,
+			Id:   &d.frameworkId,
 		},
 		Type: &acknowledgeType,
 		Acknowledge: &mesos_scheduler.Call_Acknowledge{
 			SlaveId: &mesos.SlaveID{
 				Value: &update.SlaveId,
 			},
-			TaskId:  &mesos.TaskID{
+			TaskId: &mesos.TaskID{
 				Value: &update.TaskId,
 			},
-			Uuid:    update.uuid,
+			Uuid: update.uuid,
 		},
 	}
 
-	err := send(acknowledgeCall)
+	err := d.send(acknowledgeCall)
 	if err != nil {
 		return fmt.Errorf("failed to send acknowledgement: %+v", err)
 	}
@@ -159,15 +158,16 @@ func SendAck(update StatusUpdate) error {
 }
 
 // LaunchTask launches the given command as a task and consumes the offer.
-func LaunchTask(offer mesos.Offer, id, command string) error {
+func (d Driver) LaunchTask(offer mesos.Offer, id, command string) error {
 	log.Printf("launching %s: %q", id, command)
 
 	launchType := mesos_scheduler.Call_LAUNCH
 	launchCall := &mesos_scheduler.Call{
+		// TODO(dhamon): move setting of framework info to driver.send?
 		FrameworkInfo: &mesos.FrameworkInfo{
-			User: &registeredUser,
-			Name: &frameworkName,
-			Id:   &frameworkId,
+			User: &d.user,
+			Name: &d.frameworkName,
+			Id:   &d.frameworkId,
 		},
 		Type: &launchType,
 		Launch: &mesos_scheduler.Call_Launch{
@@ -190,7 +190,7 @@ func LaunchTask(offer mesos.Offer, id, command string) error {
 		},
 	}
 
-	err := send(launchCall)
+	err := d.send(launchCall)
 	if err != nil {
 		return err
 	}
