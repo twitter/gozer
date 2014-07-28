@@ -1,15 +1,15 @@
 package mesos
 
 import (
-	"log"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 const heartbeatTime = time.Minute
 
 func stateReady(d *Driver) stateFn {
-	// Framework is connected, ready and waiting for something to do
-	log.Println("STATE: Ready")
+	glog.Info("driver.ready: framework is registered and waiting")
 
 	select {
 	case <-time.Tick(heartbeatTime):
@@ -18,7 +18,7 @@ func stateReady(d *Driver) stateFn {
 	case command := <-d.command:
 		stateSendCommand := func(fm *Driver) stateFn {
 			if err := command(fm); err != nil {
-				log.Print("Error running command: ", err)
+				glog.Error("driver.ready: failed to run command: ", err)
 				return stateError
 			}
 			return stateReady
@@ -28,7 +28,7 @@ func stateReady(d *Driver) stateFn {
 	case event := <-d.events:
 		stateReceiveEvent := func(fm *Driver) stateFn {
 			if err := fm.eventDispatch(event); err != nil {
-				log.Print("Error dispatching event: ", err)
+				glog.Error("driver.ready: failed to dispatch event: ", err)
 				return stateError
 			}
 			return stateReady

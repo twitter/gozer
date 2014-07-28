@@ -1,7 +1,7 @@
 package mesos
 
 import (
-	"log"
+	"github.com/golang/glog"
 )
 
 // A state function is a function that does stuff, and
@@ -16,6 +16,6 @@ func (d *Driver) Run() {
 }
 
 func stateStop(d *Driver) stateFn {
-	log.Print("STOP: Stopping framework: ", d)
+	glog.Info("driver.stop: stopping framework: ", d)
 	return nil
 }

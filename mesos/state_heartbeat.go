@@ -1,11 +1,11 @@
 package mesos
 
 import (
-	"log"
+	"github.com/golang/glog"
 )
 
 // We are reached here only from the 'Ready' state
 func stateHeartbeat(d *Driver) stateFn {
-	log.Println("STATE: Heartbeat")
+	glog.V(1).Info("driver.state: heartbeat")
 	return stateReady
 }

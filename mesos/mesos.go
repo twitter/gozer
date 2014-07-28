@@ -1,16 +1,15 @@
 package mesos
 
 import (
-	"log"
 	"net"
 	"os"
 
+	"github.com/golang/glog"
 	"github.com/twitter/gozer/proto/mesos.pb"
 	"github.com/twitter/gozer/proto/scheduler.pb"
 )
 
 func newDriver(mc *DriverConfig) (d *Driver, err error) {
-
 	name, err := os.Hostname()
 	if err != nil {
 		return
@@ -20,7 +19,7 @@ func newDriver(mc *DriverConfig) (d *Driver, err error) {
 	if err != nil {
 		return
 	}
-	log.Printf("XXX: %s = %+v", name, addrs)
+	glog.V(1).Infof("XXX: %s = %+v", name, addrs)
 
 	d = &Driver{
 		config:  *mc,
@@ -36,7 +35,6 @@ func newDriver(mc *DriverConfig) (d *Driver, err error) {
 }
 
 func New(framework, user, master string, port int) (d *Driver, err error) {
-
 	cf := &DriverConfig{
 		FrameworkName:  framework,
 		RegisteredUser: user,

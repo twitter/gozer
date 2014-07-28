@@ -1,7 +1,7 @@
 package mesos
 
 import (
-	"log"
+	"github.com/golang/glog"
 )
 
 type stateErrorId int
@@ -16,6 +16,6 @@ const (
 
 func stateError(d *Driver) stateFn {
 	// Handle any type of error state
-	log.Print("STATE: Error, MesosMaster = ", d)
+	glog.Error("driver.error:", d)
 	return stateStop
 }

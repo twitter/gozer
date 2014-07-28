@@ -2,26 +2,24 @@ package mesos
 
 import (
 	"fmt"
-	"log"
 
+	"github.com/golang/glog"
 	"github.com/twitter/gozer/proto/mesos.pb"
 	"github.com/twitter/gozer/proto/scheduler.pb"
 )
 
-// TODO(dhamon): custom driver logger
-
 func (d *Driver) eventDispatch(event *mesos_scheduler.Event) error {
 	switch *event.Type {
 	case mesos_scheduler.Event_REGISTERED:
-		log.Println("Event REGISTERED: ", event)
+		glog.V(1).Info("Event REGISTERED:", event)
 
 	case mesos_scheduler.Event_REREGISTERED:
-		log.Println("Event REREGISTERED: ", event)
+		glog.V(1).Info("Event REREGISTERED:", event)
 
 	case mesos_scheduler.Event_OFFERS:
 		for _, offer := range event.Offers.Offers {
 			if *offer.FrameworkId.Value != *d.frameworkId.Value {
-				log.Printf("unexpected framework in offer: want %q, got %q",
+				glog.Warningf("driver: unexpected framework in offer: want %q, got %q",
 					*d.frameworkId.Value, *offer.FrameworkId.Value)
 				continue
 			}
@@ -30,16 +28,15 @@ func (d *Driver) eventDispatch(event *mesos_scheduler.Event) error {
 				d.Offers <- offer
 			} else {
 				// TODO(weingart): how to ignore/return offer?
-				log.Printf("ignoring offer that we have no capacity for: %+v",
-					offer)
+				glog.Warningf("driver: ignoring offer that we have no capacity for: %+v", offer)
 			}
 		}
 
 	case mesos_scheduler.Event_RESCIND:
-		log.Printf("Event RESCIND: %+v", event)
+		glog.V(1).Info("Event RESCIND:", event)
 
 	case mesos_scheduler.Event_UPDATE:
-		log.Printf("Event UPDATE: %+v", event)
+		glog.V(1).Info("Event UPDATE:", event)
 
 		switch *event.Update.Status.State {
 		case mesos.TaskState_TASK_STAGING,
@@ -58,20 +55,20 @@ func (d *Driver) eventDispatch(event *mesos_scheduler.Event) error {
 				driver:  d,
 			}
 		default:
-			log.Printf("Unknown Event_UPDATE: %+v", event)
+			glog.Warning("driver: unknown Event_UPDATE:", event)
 		}
 
 	case mesos_scheduler.Event_MESSAGE:
-		log.Printf("Event MESSAGE: %+v", event)
+		glog.V(1).Info("Event MESSAGE:", event)
 
 	case mesos_scheduler.Event_FAILURE:
-		log.Printf("Event FAILURE: %+v", event)
+		glog.V(1).Info("Event FAILURE:", event)
 
 	case mesos_scheduler.Event_ERROR:
-		log.Printf("Event ERROR: %+v", event)
+		glog.V(1).Info("Event ERROR:", event)
 
 	default:
-		log.Printf("Unexpected Event: %+v", event)
+		glog.Warning("driver: unexpected Event:", event)
 		return fmt.Errorf("unexpected event type: %q", event.Type)
 	}
 
