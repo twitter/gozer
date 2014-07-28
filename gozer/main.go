@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
+	"github.com/golang/glog"
 	"github.com/twitter/gozer/mesos"
 )
 
@@ -58,11 +58,15 @@ type Task struct {
 	// TODO(dhamon): resource requirements
 }
 
+func (t Task) String() string {
+	return fmt.Sprintf("Task {id: %q, command: %q, state: %q}", t.Id, t.Command, t.State)
+}
+
 func startAPI() {
 	http.HandleFunc("/api/addtask", addTaskHandler)
-	log.Printf("api listening on port %d", *port)
+	glog.Infof("gozer: api listening on port %d", *port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", *port), nil); err != nil {
-		log.Fatalf("failed to start listening on port %d", *port)
+		glog.Fatalf("gozer: failed to start listening on port %d", *port)
 	}
 }
 
@@ -70,16 +74,23 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		w.Header().Add("Allow", "POST")
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		log.Printf("received addtask request with unexpected method. want %q, got %q: %+v", "POST", r.Method, r)
+		glog.Errorf("gozer: received addtask request with unexpected method. want %q, got %q: %+v", "POST", r.Method, r)
+		return
 	}
 	defer r.Body.Close()
 
 	var task Task
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
-		log.Printf("ERROR: failed to parse JSON body from addtask request %+v: %+v", r, err)
+		glog.Errorf("gozer: failed to parse JSON body from addtask request %+v: %+v", r, err)
 		// TODO(dhamon): Better error for this case.
 		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	if len(task.Command) == 0 {
+		glog.Errorf("gozer: cannot launch task with empty command: %s", task)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
@@ -93,15 +104,12 @@ func main() {
 
 	go startAPI()
 
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
-	log.Println("Registering...")
 	driver, err := mesos.New("gozer", *user, *master, *masterPort)
 	if err != nil {
-		log.Fatal(err)
+		glog.Fatalf("gozer: failed to create mesos driver: %+v", err)
 	}
 
-	// Shephard all our tasks
+	// Shepherd all our tasks
 	//
 	// Note: This will require a significant re-architecting, most likely to break out the
 	// gozer based tasks and their state transitions, possibly using a go-routine per task,
@@ -123,17 +131,19 @@ func main() {
 		select {
 
 		case update := <-driver.Updates:
-			log.Println("Gozer status update:", update)
+			glog.Infof("gozer: status update received: %s", update)
 			update.Ack()
 
+		// TODO(dhamon): Flip this around so we check for offers and then compare to
+		// pending tasks.
 		case <-time.After(5 * time.Second):
-			log.Println("Gozer: checking for tasks")
+			glog.V(1).Info("gozer: checking for tasks")
 			// After a timeout, see if there any tasks to launch
 			taskIds := taskstore.Ids()
 			for _, taskId := range taskIds {
 				state, err := taskstore.State(taskId)
 				if err != nil {
-					log.Printf("Gozer: error getting task state for task %q: %+v", taskId, err)
+					glog.Errorf("gozer: failed to get state for task %q: %+v", taskId, err)
 					continue
 				}
 
@@ -143,7 +153,7 @@ func main() {
 
 				mesosTask, err := taskstore.MesosTask(taskId)
 				if err != nil {
-					log.Printf("Gozer: error getting mesos task for task %q: %+v", taskId, err)
+					glog.Errorf("gozer: failed to get mesos task for task %q: %+v", taskId, err)
 					continue
 				}
 
@@ -153,7 +163,7 @@ func main() {
 				// TODO(dhamon): Check for resources before launching
 				err = driver.LaunchTask(offer, mesosTask)
 				if err != nil {
-					log.Printf("Gozer: error launching task %q: %+v", taskId, err)
+					glog.Errorf("gozer: failed to launch task %q: %+v", taskId, err)
 					continue
 				}
 

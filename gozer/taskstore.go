@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
+	"github.com/golang/glog"
 	"github.com/twitter/gozer/mesos"
 )
 
@@ -24,7 +24,7 @@ func (t *TaskStore) Add(task *Task) error {
 	defer t.Unlock()
 
 	if _, ok := t.tasks[task.Id]; ok {
-		return fmt.Errorf("task Id '%s' already exists, addition ignored", task.Id)
+		return fmt.Errorf("task id %q already exists; addition ignored", task.Id)
 	}
 
 	task.State = TaskState_INIT
@@ -33,7 +33,7 @@ func (t *TaskStore) Add(task *Task) error {
 		Command: task.Command,
 	}
 	t.tasks[task.Id] = task
-	log.Printf("TASK '%s' State * -> %s", task.Id, task.State)
+	glog.V(1).Infof("gozer: TASK %q State * -> %s", task.Id, task.State)
 
 	return nil
 }
@@ -44,10 +44,10 @@ func (t *TaskStore) Update(taskId string, state TaskState) error {
 
 	task, ok := t.tasks[taskId]
 	if !ok {
-		return fmt.Errorf("task Id '%s' not found, update ignored", taskId)
+		return fmt.Errorf("task id %q not found, update ignored", taskId)
 	}
 
-	log.Printf("TASK '%s' State %s -> %s", taskId, task.State, state)
+	glog.V(1).Infof("gozer: TASK %q State %s -> %s", taskId, task.State, state)
 	task.State = state
 
 	return nil
