@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	"github.com/twitter/gozer/mesos"
 )
@@ -12,25 +13,44 @@ var (
 	port       = flag.Int("port", 4343, "Port to listen on for the API endpoint")
 	master     = flag.String("master", "localhost", "Hostname of the master")
 	masterPort = flag.Int("masterPort", 5050, "Port of the master")
+	logLevel   = flag.String("logLevel", "info", "Log level (debug, info, warn, error)")
 
 	taskstore = NewTaskStore()
 
-	// TODO(dhamon): flags for log level
-	log = mesos.NewLog(mesos.LogConfig{
-		Prefix: "gozer",
-		Info:   os.Stdout,
-		Warn:   os.Stderr,
-		Error:  os.Stderr},
-	)
+	log mesos.Log = mesos.Log{}
 )
+
+func createLogConfig() mesos.LogConfig {
+	logConfig := mesos.LogConfig{}
+
+	level := strings.ToLower(*logLevel)
+
+	if level == "debug" || level == "info" || level == "warn" || level == "error" {
+		logConfig.Error = os.Stderr
+	}
+	if level == "debug" || level == "info" || level == "warn" {
+		logConfig.Warn = os.Stderr
+	}
+	if level == "debug" || level == "info" {
+		logConfig.Info = os.Stdout
+	}
+	if level == "debug" {
+		logConfig.Debug = os.Stdout
+	}
+
+	return logConfig
+}
 
 func main() {
 	flag.Parse()
 
+	logConfig := createLogConfig()
+	log = mesos.NewLog("gozer", logConfig)
+
 	go startHTTP()
 
 	log.Info.Println("Registering")
-	driver, err := mesos.New("gozer", *user, *master, *masterPort)
+	driver, err := mesos.New("gozer", *user, *master, *masterPort, logConfig)
 	if err != nil {
 		log.Error.Fatal(err)
 	}

@@ -14,6 +14,7 @@ type MasterAddress struct {
 }
 
 type driverConfig struct {
+	// TODO(dhamon): Make these private?
 	FrameworkName  string
 	RegisteredUser string
 	Masters        []MasterAddress
@@ -59,20 +60,14 @@ func newDriver(mc *driverConfig) (d *Driver, err error) {
 	return
 }
 
-func New(framework, user, master string, port int) (d *Driver, err error) {
+func New(framework, user, master string, port int, logConfig LogConfig) (d *Driver, err error) {
 	cf := &driverConfig{
 		FrameworkName:  framework,
 		RegisteredUser: user,
 		Masters: []MasterAddress{
 			MasterAddress{Hostname: master, Port: port},
 		},
-		// TODO(dhamon): set channel filters based on log level
-		Log: NewLog(LogConfig{
-			Prefix: "driver",
-			Info:   os.Stdout,
-			Warn:   os.Stdout,
-			Error:  os.Stderr},
-		),
+		Log: NewLog("driver", logConfig),
 	}
 
 	if d, err = newDriver(cf); err == nil {

@@ -17,7 +17,6 @@ type Log struct {
 // LogConfig is used to configure the destinations for log channels. Any nil
 // writers will be interpreted as discard.
 type LogConfig struct {
-	Prefix string
 	Debug  io.Writer
 	Info   io.Writer
 	Warn   io.Writer
@@ -33,11 +32,11 @@ func newLogger(writer io.Writer, prefix string) *log.Logger {
 	return log.New(writer, prefix, logFlags)
 }
 
-func NewLog(config LogConfig) Log {
+func NewLog(prefix string, config LogConfig) Log {
 	return Log{
-		Debug: newLogger(config.Debug, fmt.Sprintf("[D] %s:", config.Prefix)),
-		Info:  newLogger(config.Info, fmt.Sprintf("[I] %s:", config.Prefix)),
-		Warn:  newLogger(config.Warn, fmt.Sprintf("[W] %s:", config.Prefix)),
-		Error: newLogger(config.Error, fmt.Sprintf("[E] %s:", config.Prefix)),
+		Debug: newLogger(config.Debug, fmt.Sprintf("[D] %s:", prefix)),
+		Info:  newLogger(config.Info, fmt.Sprintf("[I] %s:", prefix)),
+		Warn:  newLogger(config.Warn, fmt.Sprintf("[W] %s:", prefix)),
+		Error: newLogger(config.Error, fmt.Sprintf("[E] %s:", prefix)),
 	}
 }
