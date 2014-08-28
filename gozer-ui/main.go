@@ -14,29 +14,42 @@ import (
 
 const (
 	rootHTML = `
-<html>
-  <head>
-    <title>gozer</title>
-  </head>
-  <body>
-    <h1>gozer</h1>
-    <h2>tasks</h2>
-    <table>
-	<tr>
-		<th>id</th><th>command</th><th>state</th>
-	</tr>
-	{{range $task := .}}
-	<tr>
-		<td>{{$task.Id}}</td><td>{{$task.Command}}</td><td>{{$task.State}}</td>
-	</tr>
-	{{end}}
-  </body>
-</html>
-`
+	<!DOCTYPE html>
+	<html>
+		<head>
+			<meta charset="utf-8">
+			<meta http-equiv="X-UA-Compatible" content="IE=edge">
+			<meta name="viewport" content="width=device-width, initial-scale=1">
+			<title>gozer</title>
+			<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap.min.css">
+			<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/css/bootstrap-theme.min.css">
+		</head>
+		<body>
+			<div class="container">
+				<h1>gozer</h1>
+				<h2>tasks</h2>
+				<table class="table">
+					<tr>
+						<th>id</th><th>command</th><th>state</th>
+					</tr>
+					{{range $task := .}}
+					<!-- TODO(dhamon): use table row css matched to state. -->
+					<tr>
+						<td>{{$task.Id}}</td><td>{{$task.Command}}</td><td>{{$task.State}}</td>
+					</tr>
+					{{end}}
+				</table>
+			</div>
+		</body>
+		<script src="https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"></script>
+		<script src="//maxcdn.bootstrapcdn.com/bootstrap/3.2.0/js/bootstrap.min.js"></script>
+	</html>
+	`
 )
 
 var (
 	port		= flag.Int("port", 5000, "Port to listen on")
+	// TODO(dhamon): take multiple hostnames
 	gozerHostname	= flag.String("gozerHostname", "localhost", "Hostname of gozer")
 	gozerPort	= flag.Int("gozerPort", 4343, "Port Gozer's API is listening on")
 
