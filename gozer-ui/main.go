@@ -48,12 +48,12 @@ const (
 )
 
 var (
-	port		= flag.Int("port", 5000, "Port to listen on")
+	port = flag.Int("port", 5000, "Port to listen on")
 	// TODO(dhamon): take multiple hostnames
-	gozerHostname	= flag.String("gozerHostname", "localhost", "Hostname of gozer")
-	gozerPort	= flag.Int("gozerPort", 4343, "Port Gozer's API is listening on")
+	gozerHostname = flag.String("gozerHostname", "localhost", "Hostname of gozer")
+	gozerPort     = flag.Int("gozerPort", 4343, "Port Gozer's API is listening on")
 
-	rootTemplate	= template.Must(template.New("root").Parse(rootHTML))
+	rootTemplate = template.Must(template.New("root").Parse(rootHTML))
 )
 
 func main() {
@@ -99,4 +99,3 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 
 	rootTemplate.Execute(w, taskStore)
 }
-

@@ -4,8 +4,8 @@ import (
 	"flag"
 	"os"
 
-	"github.com/twitter/gozer/mesos"
 	"github.com/twitter/gozer/gozer"
+	"github.com/twitter/gozer/mesos"
 )
 
 var (

@@ -29,9 +29,9 @@ var TaskStateMap = map[mesos_pb.TaskState]TaskState{
 }
 
 type Task struct {
-	Id        string           `json:"id"`
-	Command   string           `json:"command"`
-	State     TaskState        `json:"state"`
+	Id      string    `json:"id"`
+	Command string    `json:"command"`
+	State   TaskState `json:"state"`
 	// TODO(dhamon): resource requirements
 }
 
@@ -45,4 +45,3 @@ func (t Task) IsTerminal() bool {
 		t.State == TaskState_KILLED ||
 		t.State == TaskState_LOST
 }
-
