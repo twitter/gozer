@@ -5,7 +5,13 @@ import (
 	"sync"
 
 	"github.com/twitter/gozer/mesos"
+	"github.com/twitter/gozer/gozer"
 )
+
+type Task struct {
+	gozerTask *gozer.Task
+	mesosTask *mesos.MesosTask
+}
 
 type TaskStore struct {
 	sync.RWMutex
@@ -22,22 +28,22 @@ func (t *TaskStore) Add(task *Task) error {
 	t.Lock()
 	defer t.Unlock()
 
-	if _, ok := t.tasks[task.Id]; ok {
-		return fmt.Errorf("task Id %q already exists; addition ignored", task.Id)
+	if _, ok := t.tasks[task.gozerTask.Id]; ok {
+		return fmt.Errorf("task Id %q already exists; addition ignored", task.gozerTask.Id)
 	}
 
-	task.State = TaskState_INIT
+	task.gozerTask.State = gozer.TaskState_INIT
 	task.mesosTask = &mesos.MesosTask{
-		Id:      task.Id,
-		Command: task.Command,
+		Id:      task.gozerTask.Id,
+		Command: task.gozerTask.Command,
 	}
-	t.tasks[task.Id] = task
-	log.Debug.Printf("TASK %q State * -> %s", task.Id, task.State)
+	t.tasks[task.gozerTask.Id] = task
+	log.Debug.Printf("TASK %q State * -> %s", task.gozerTask.Id, task.gozerTask.State)
 
 	return nil
 }
 
-func (t *TaskStore) Update(taskId string, state TaskState) error {
+func (t *TaskStore) Update(taskId string, state gozer.TaskState) error {
 	t.Lock()
 	defer t.Unlock()
 
@@ -46,10 +52,10 @@ func (t *TaskStore) Update(taskId string, state TaskState) error {
 		return fmt.Errorf("task Id %q not found, update ignored", taskId)
 	}
 
-	log.Debug.Printf("TASK %q State %s -> %s", taskId, task.State, state)
-	task.State = state
+	log.Debug.Printf("TASK %q State %s -> %s", taskId, task.gozerTask.State, state)
+	task.gozerTask.State = state
 
-	if task.isTerminal() {
+	if task.gozerTask.IsTerminal() {
 		log.Info.Printf("Removing terminal task %q", taskId)
 		delete(t.tasks, taskId)
 		log.Debug.Printf("TASK %q removed", taskId)
@@ -70,7 +76,7 @@ func (t *TaskStore) Ids() []string {
 	return keys
 }
 
-func (t *TaskStore) State(taskId string) (TaskState, error) {
+func (t *TaskStore) State(taskId string) (gozer.TaskState, error) {
 	t.RLock()
 	defer t.RUnlock()
 
@@ -79,7 +85,7 @@ func (t *TaskStore) State(taskId string) (TaskState, error) {
 		return "", fmt.Errorf("task Id %q not found", taskId)
 	}
 
-	return task.State, nil
+	return task.gozerTask.State, nil
 }
 
 func (t *TaskStore) MesosTask(taskId string) (*mesos.MesosTask, error) {

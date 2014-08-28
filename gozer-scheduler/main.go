@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/twitter/gozer/mesos"
+	"github.com/twitter/gozer/gozer"
 )
 
 var (
@@ -68,7 +69,7 @@ func main() {
 				continue
 			}
 
-			newState, ok := taskStateMap[update.State]
+			newState, ok := gozer.TaskStateMap[update.State]
 			if !ok {
 				log.Error.Printf("Unknown mesos task state: %q", update.State)
 				continue
@@ -98,7 +99,7 @@ func main() {
 					continue
 				}
 
-				if state != TaskState_INIT {
+				if state != gozer.TaskState_INIT {
 					continue
 				}
 
@@ -116,7 +117,7 @@ func main() {
 					continue
 				}
 
-				taskstore.Update(taskId, TaskState_STARTING)
+				taskstore.Update(taskId, gozer.TaskState_STARTING)
 				launched = true
 				break
 			}
