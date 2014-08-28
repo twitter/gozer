@@ -47,7 +47,11 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 func tasksHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(taskstore.tasks)
+	tasks := make([]gozer.Task, len(taskstore.tasks))
+	for _, task := range taskstore.tasks {
+		tasks = append(tasks, *task.gozerTask)
+	}
+	err := json.NewEncoder(w).Encode(tasks)
 	if err != nil {
 		log.Error.Printf("Failed to marshal %+v to JSON: %+v", taskstore.tasks, err)
 		w.WriteHeader(http.StatusInternalServerError)
