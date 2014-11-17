@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"github.com/twitter/gozer/gozer"
 )
 
 var taskIndex = 0
@@ -25,7 +27,7 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	var task Task
+	var task gozer.Task
 	err := json.NewDecoder(r.Body).Decode(&task)
 	if err != nil {
 		log.Error.Printf("Failed to parse JSON body from addtask request %+v: %+v", r, err)
@@ -38,14 +40,18 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 		taskIndex += 1
 	}
 
-	taskstore.Add(&task)
+	taskstore.Add(&Task{gozerTask: &task})
 
 	w.WriteHeader(http.StatusOK)
 }
 
 func tasksHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	err := json.NewEncoder(w).Encode(taskstore.tasks)
+	tasks := make([]gozer.Task, len(taskstore.tasks))
+	for _, task := range taskstore.tasks {
+		tasks = append(tasks, *task.gozerTask)
+	}
+	err := json.NewEncoder(w).Encode(tasks)
 	if err != nil {
 		log.Error.Printf("Failed to marshal %+v to JSON: %+v", taskstore.tasks, err)
 		w.WriteHeader(http.StatusInternalServerError)

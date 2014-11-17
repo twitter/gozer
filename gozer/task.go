@@ -1,9 +1,8 @@
-package main
+package gozer
 
 import (
 	"fmt"
 
-	"github.com/twitter/gozer/mesos"
 	mesos_pb "github.com/twitter/gozer/proto/mesos.pb"
 )
 
@@ -19,7 +18,7 @@ const (
 	TaskState_LOST     TaskState = "LOST"
 )
 
-var taskStateMap = map[mesos_pb.TaskState]TaskState{
+var TaskStateMap = map[mesos_pb.TaskState]TaskState{
 	mesos_pb.TaskState_TASK_STAGING:  TaskState_STARTING,
 	mesos_pb.TaskState_TASK_STARTING: TaskState_STARTING,
 	mesos_pb.TaskState_TASK_RUNNING:  TaskState_RUNNING,
@@ -30,10 +29,9 @@ var taskStateMap = map[mesos_pb.TaskState]TaskState{
 }
 
 type Task struct {
-	Id        string           `json:"id"`
-	Command   string           `json:"command"`
-	State     TaskState        `json:"state"`
-	mesosTask *mesos.MesosTask `json:"-"`
+	Id      string    `json:"id"`
+	Command string    `json:"command"`
+	State   TaskState `json:"state"`
 	// TODO(dhamon): resource requirements
 }
 
@@ -41,10 +39,9 @@ func (t Task) String() string {
 	return fmt.Sprintf("%s: %q @ %s", t.Id, t.Command, t.State)
 }
 
-func (t Task) isTerminal() bool {
+func (t Task) IsTerminal() bool {
 	return t.State == TaskState_FAILED ||
 		t.State == TaskState_FINISHED ||
 		t.State == TaskState_KILLED ||
 		t.State == TaskState_LOST
 }
-
